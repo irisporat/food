@@ -1,0 +1,14 @@
+name = "food"
+compatibility_date = "2026-04-10"
+compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+
+[assets]
+binding = "ASSETS"
+directory = ".open-next/assets"
+
+# Uncomment and fill in when D1 database is ready:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "food-db"
+# database_id = "YOUR_DATABASE_ID"

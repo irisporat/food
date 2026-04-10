@@ -18,14 +18,14 @@ Next.js App Router
       ↓  (output)
 Cloudflare Worker  ←→  D1 (future)
       ↑
-  wrangler dev (local) / wrangler deploy (prod)
+  wrangler dev --local (local) / wrangler deploy (prod)
 ```
 
 ## New Dependencies
 
 | Package | Type | Purpose |
 |---------|------|---------|
-| `@opennextjs/cloudflare` | dependency | Build adapter for Cloudflare Workers |
+| `@opennextjs/cloudflare` | devDependency | Build adapter for Cloudflare Workers |
 | `wrangler` | devDependency | Local dev server + deploy CLI |
 
 ## New Files
@@ -34,18 +34,20 @@ Cloudflare Worker  ←→  D1 (future)
 
 Worker configuration file. Includes:
 - Worker name (`food`)
-- Compatibility date and flags (`nodejs_compat` required by OpenNext)
+- Compatibility date (current, so the Worker opts into latest platform fixes)
+- Compatibility flag `nodejs_compat` (required by OpenNext)
 - Main entry point pointing to OpenNext's output
-- Assets directory binding
+- Assets table with `binding` and `directory` fields
 - Commented-out D1 binding ready to activate later
 
 ```toml
 name = "food"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-04-10"
 compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"
 
 [assets]
+binding = "ASSETS"
 directory = ".open-next/assets"
 
 # Uncomment and fill in when D1 database is ready:
@@ -61,26 +63,43 @@ Local environment variables for `wrangler dev`. Gitignored. Empty initially but 
 
 ## Changes to Existing Files
 
+### `next.config.ts`
+
+Import and call `initOpenNextCloudflareForDev()` at the top of the file. This enables Cloudflare bindings (e.g. D1, KV) to work during `npm run dev` (standard Next.js dev server). Without it, `getRequestContext()` will throw during local `next dev`.
+
+```ts
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import type { NextConfig } from "next";
+
+initOpenNextCloudflareForDev();
+
+const nextConfig: NextConfig = {};
+
+export default nextConfig;
+```
+
 ### `package.json`
 
 Add two scripts:
 
 ```json
-"preview": "opennextjs-cloudflare build && wrangler dev",
+"preview": "opennextjs-cloudflare build && wrangler dev --local",
 "deploy": "opennextjs-cloudflare build && wrangler deploy"
 ```
 
+`--local` on `wrangler dev` ensures the preview runs fully locally without requiring a Cloudflare account connection or remote infrastructure.
+
 ### `.gitignore`
 
-Add `.dev.vars` and `.open-next/` to the ignore list.
+Add `/.dev.vars` and `/.open-next/` to the ignore list (rooted to the project root, consistent with the existing `/.next/` entry).
 
 ## Dev & Deploy Workflow
 
-| Task | Command |
-|------|---------|
-| Local Next.js dev (fast iteration) | `npm run dev` |
-| Local Worker preview (production-like) | `npm run preview` |
-| Deploy to Cloudflare | `npm run deploy` |
+| Task | Command | Notes |
+|------|---------|-------|
+| Local Next.js dev (fast iteration) | `npm run dev` | Standard Next.js HMR |
+| Local Worker preview (production-like) | `npm run preview` | Runs fully locally, no Cloudflare account needed |
+| Deploy to Cloudflare | `npm run deploy` | Requires `wrangler login` first |
 
 ## D1 Integration (Future)
 
