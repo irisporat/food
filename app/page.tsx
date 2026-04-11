@@ -24,12 +24,12 @@ type View = 'home' | 'category' | 'recipe'
 type ModalStep = 'form' | 'loading' | 'done'
 
 const CATEGORIES = [
-  { name: 'מרקים', icon: <Soup size={32} /> },
-  { name: 'סלטים וירקות', icon: <Salad size={48} /> },
-  { name: 'מאפים', icon: <Croissant size={32} /> },
-  { name: 'בשר ועוף', icon: <Drumstick size={32} /> },
-  { name: 'דגים', icon: <Fish size={32} /> },
-  { name: 'מתוקים', icon: <CakeSlice size={32} /> },
+  { name: 'מרקים', icon: <Soup /> },
+  { name: 'סלטים וירקות', icon: <Salad /> },
+  { name: 'מאפים', icon: <Croissant /> },
+  { name: 'בשר ועוף', icon: <Drumstick /> },
+  { name: 'דגים', icon: <Fish /> },
+  { name: 'מתוקים', icon: <CakeSlice /> },
 ]
 
 export default function Home() {
@@ -134,16 +134,18 @@ export default function Home() {
     <>
       {/* Home View */}
       <div id="home-view" className={`container${view === 'home' ? ' active' : ''}`}>
-        <div className="home-header-row">
+        <div className="logo-title-row">
+          <div className="icon-wrapper">
+            <UtensilsCrossed />
+          </div>
+          <h1>מתכונים</h1>
+        </div>
+        <div className="action-row">
           <button className="add-recipe-btn" onClick={openAddRecipe}>
-            <Plus size={32} />
+            <Plus />
             <span>הוסף מתכון</span>
           </button>
-          <div className="icon-wrapper">
-            <UtensilsCrossed size={40} />
-          </div>
         </div>
-        <h1>מתכונים</h1>
         <div className="categories-grid">
           {CATEGORIES.map((cat) => (
             <button key={cat.name} className="category-btn" onClick={() => showCategory(cat.name)}>
@@ -191,12 +193,12 @@ export default function Home() {
       <div id="recipe-view" className={`container${view === 'recipe' ? ' active' : ''}`}>
         <div className="recipe-card">
           <div className="recipe-header">
-            <h1 className="recipe-title">
-              {recipeLoading ? 'טוען...' : (currentRecipe?.title ?? '')}
-            </h1>
             <button className="back-btn-nav" onClick={() => showCategory(backCategory)}>
               <ChevronRight size={24} />
             </button>
+            <h1 className="recipe-title">
+              {recipeLoading ? 'טוען...' : (currentRecipe?.title ?? '')}
+            </h1>
           </div>
 
           <div className="recipe-section">
