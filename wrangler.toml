@@ -7,8 +7,7 @@ main = ".open-next/worker.js"
 binding = "ASSETS"
 directory = ".open-next/assets"
 
-# Uncomment and fill in when D1 database is ready:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "food-db"
-# database_id = "YOUR_DATABASE_ID"
+[[d1_databases]]
+binding = "recipes_db"
+database_name = "recipes-db"
+database_id = "a3fb34ca-59ac-4f2e-bdfc-a983e289da0d"

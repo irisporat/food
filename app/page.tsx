@@ -12,28 +12,16 @@ import {
   Plus,
   ChevronRight,
   ChevronLeft,
-  Link as LinkIcon,
-  FileText,
   ShoppingBasket,
   ChefHat,
   ExternalLink,
   CheckCircle,
 } from 'lucide-react'
+import { getRecipesByCategory, getRecipeById, addRecipe } from './actions'
+import type { Recipe } from '@/db/schema'
 
 type View = 'home' | 'category' | 'recipe'
-type ModalStep = 'choices' | 'link' | 'text' | 'loading' | 'done-link' | 'done-text'
-
-interface RecipeMeta {
-  title: string
-  file: string
-}
-
-interface Recipe {
-  title: string
-  ingredients: string
-  instructions: string
-  source_url?: string
-}
+type ModalStep = 'form' | 'loading' | 'done'
 
 const CATEGORIES = [
   { name: 'מרקים', icon: <Soup size={32} /> },
@@ -47,17 +35,24 @@ const CATEGORIES = [
 export default function Home() {
   const [view, setView] = useState<View>('home')
   const [currentCategory, setCurrentCategory] = useState('')
-  const [recipeList, setRecipeList] = useState<RecipeMeta[]>([])
+  const [recipeList, setRecipeList] = useState<Recipe[]>([])
   const [recipeListLoading, setRecipeListLoading] = useState(false)
   const [recipeListError, setRecipeListError] = useState(false)
   const [currentRecipe, setCurrentRecipe] = useState<Recipe | null>(null)
   const [recipeLoading, setRecipeLoading] = useState(false)
   const [backCategory, setBackCategory] = useState('')
+  
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalStep, setModalStep] = useState<ModalStep>('choices')
-  const [recipeUrl, setRecipeUrl] = useState('')
-  const [recipeText, setRecipeText] = useState('')
-  const [doneName, setDoneName] = useState('')
+  const [modalStep, setModalStep] = useState<ModalStep>('form')
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    title: '',
+    category: '',
+    ingredients: '',
+    instructions: '',
+    sourceUrl: ''
+  })
 
   const showHome = () => {
     setView('home')
@@ -72,59 +67,67 @@ export default function Home() {
     setView('category')
     window.scrollTo(0, 0)
     try {
-      const res = await fetch('/recipes/category_index.json')
-      if (!res.ok) throw new Error()
-      const index = await res.json()
-      setRecipeList(index[category] || [])
-    } catch {
+      const recipes = await getRecipesByCategory(category)
+      setRecipeList(recipes)
+    } catch (err) {
+      console.error(err)
       setRecipeListError(true)
     }
     setRecipeListLoading(false)
   }
 
-  const showRecipeDetail = async (filename: string, category: string) => {
+  const showRecipeDetail = async (id: number, category: string) => {
     setBackCategory(category)
     setCurrentRecipe(null)
     setRecipeLoading(true)
     setView('recipe')
     window.scrollTo(0, 0)
     try {
-      const res = await fetch(`/recipes/${filename}`)
-      if (!res.ok) throw new Error()
-      const recipe = await res.json()
+      const recipe = await getRecipeById(id)
       setCurrentRecipe(recipe)
     } catch {
-      setCurrentRecipe({ title: 'שגיאה בטעינה', ingredients: '', instructions: '' })
+      // Fallback or error handled in UI
     }
     setRecipeLoading(false)
   }
 
   const openAddRecipe = () => {
-    setModalStep('choices')
-    setRecipeUrl('')
-    setRecipeText('')
-    setDoneName('')
+    setModalStep('form')
+    setFormData({
+      title: '',
+      category: currentCategory || CATEGORIES[0].name,
+      ingredients: '',
+      instructions: '',
+      sourceUrl: ''
+    })
     setModalOpen(true)
   }
 
-  const closeModal = () => setModalOpen(false)
-
-  const startExtraction = () => {
-    if (!recipeUrl) { alert('נא להזין קישור'); return }
-    setModalStep('loading')
-    setTimeout(() => setModalStep('done-link'), 2500)
+  const closeModal = () => {
+    setModalOpen(false)
+    if (modalStep === 'done') {
+      // Refresh list if we are in category view
+      if (view === 'category') {
+        showCategory(currentCategory)
+      }
+    }
   }
 
-  const saveTextRecipe = () => {
-    const raw = recipeText.trim()
-    if (!raw) { alert('נא להדביק את המתכון'); return }
-    const lines = raw.split('\n')
-    const name = lines[0].trim()
-    const remaining = lines.slice(1).join('\n').trim()
-    if (!name || !remaining) { alert('נא לוודא שיש שם מתכון בשורה הראשונה ותוכן בהמשך'); return }
-    setDoneName(name)
+  const handleSaveRecipe = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.title || !formData.category || !formData.ingredients || !formData.instructions) {
+      alert('נא למלא את כל שדות החובה')
+      return
+    }
+    
     setModalStep('loading')
-    setTimeout(() => setModalStep('done-text'), 2000)
+    try {
+      await addRecipe(formData)
+      setModalStep('done')
+    } catch (err) {
+      alert('שגיאה בשמירת המתכון')
+      setModalStep('form')
+    }
   }
 
   return (
@@ -173,9 +176,9 @@ export default function Home() {
           )}
           {recipeList.map((recipe) => (
             <button
-              key={recipe.file}
+              key={recipe.id}
               className="recipe-item"
-              onClick={() => showRecipeDetail(recipe.file, currentCategory)}
+              onClick={() => showRecipeDetail(recipe.id, currentCategory)}
             >
               <span>{recipe.title}</span>
               <ChevronLeft />
@@ -201,7 +204,7 @@ export default function Home() {
               <ShoppingBasket />
               <span>מצרכים</span>
             </div>
-            <div className="section-content">{currentRecipe?.ingredients ?? ''}</div>
+            <div className="section-content" style={{ whiteSpace: 'pre-wrap' }}>{currentRecipe?.ingredients ?? ''}</div>
           </div>
 
           <div className="recipe-section">
@@ -209,12 +212,12 @@ export default function Home() {
               <ChefHat />
               <span>אופן ההכנה</span>
             </div>
-            <div className="section-content">{currentRecipe?.instructions ?? ''}</div>
+            <div className="section-content" style={{ whiteSpace: 'pre-wrap' }}>{currentRecipe?.instructions ?? ''}</div>
           </div>
 
-          {currentRecipe?.source_url && (
+          {currentRecipe?.sourceUrl && (
             <div className="recipe-source">
-              <a href={currentRecipe.source_url} target="_blank" rel="noreferrer" className="source-link">
+              <a href={currentRecipe.sourceUrl} target="_blank" rel="noreferrer" className="source-link">
                 <ExternalLink size={20} />
                 מקור המתכון
               </a>
@@ -232,84 +235,84 @@ export default function Home() {
         <div className="modal-card" onClick={(e) => e.stopPropagation()}>
           <h2 className="modal-title">הוספת מתכון חדש</h2>
 
-          {modalStep === 'choices' && (
-            <div className="modal-choices">
-              <button className="choice-btn" onClick={() => setModalStep('link')}>
-                <LinkIcon size={48} />
-                <span>הוספת קישור</span>
-              </button>
-              <button className="choice-btn" onClick={() => setModalStep('text')}>
-                <FileText size={48} />
-                <span>הוספת מתכון (טקסט)</span>
-              </button>
-            </div>
-          )}
+          {modalStep === 'form' && (
+            <form onSubmit={handleSaveRecipe} className="add-recipe-form">
+              <div className="input-group active">
+                <label className="input-label">שם המתכון</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                />
+              </div>
 
-          {modalStep === 'link' && (
-            <div className="input-group active">
-              <input
-                type="text"
-                className="input-field"
-                placeholder="הדבק כאן את הקישור למתכון..."
-                dir="ltr"
-                value={recipeUrl}
-                onChange={(e) => setRecipeUrl(e.target.value)}
-              />
-              <button className="primary-btn" onClick={startExtraction}>
-                חלץ מתכון
-              </button>
-            </div>
-          )}
+              <div className="input-group active">
+                <label className="input-label">קטגוריה</label>
+                <select 
+                  className="input-field"
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
 
-          {modalStep === 'text' && (
-            <div className="input-group active">
-              <textarea
-                className="input-field"
-                style={{ minHeight: '300px', resize: 'vertical' }}
-                placeholder="הדבק כאן את המתכון המלא... (השורה הראשונה תהיה שם המתכון)"
-                value={recipeText}
-                onChange={(e) => setRecipeText(e.target.value)}
-              />
-              <button className="primary-btn" onClick={saveTextRecipe}>
-                שמר מתכון
+              <div className="input-group active">
+                <label className="input-label">מצרכים</label>
+                <textarea
+                  className="input-field"
+                  style={{ minHeight: '120px' }}
+                  required
+                  value={formData.ingredients}
+                  onChange={(e) => setFormData({...formData, ingredients: e.target.value})}
+                />
+              </div>
+
+              <div className="input-group active">
+                <label className="input-label">אופן ההכנה</label>
+                <textarea
+                  className="input-field"
+                  style={{ minHeight: '120px' }}
+                  required
+                  value={formData.instructions}
+                  onChange={(e) => setFormData({...formData, instructions: e.target.value})}
+                />
+              </div>
+
+              <div className="input-group active">
+                <label className="input-label">קישור למקור (אופציונלי)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  dir="ltr"
+                  value={formData.sourceUrl}
+                  onChange={(e) => setFormData({...formData, sourceUrl: e.target.value})}
+                />
+              </div>
+
+              <button type="submit" className="primary-btn" style={{ marginTop: '1rem' }}>
+                שמור מתכון
               </button>
-            </div>
+            </form>
           )}
 
           {modalStep === 'loading' && (
             <div className="loading-container" style={{ display: 'flex' }}>
               <div className="spinner" />
-              <p>מחלץ נתונים... אנא המתן</p>
+              <p>שומר מתכון... אנא המתן</p>
             </div>
           )}
 
-          {modalStep === 'done-link' && (
-            <div className="loading-container" style={{ display: 'flex' }}>
-              <div style={{ color: 'var(--accent-color)', marginBottom: '1rem' }}>
-                <CheckCircle size={48} />
-              </div>
-              <p>המתכון זוהה בהצלחה!</p>
-              <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>
-                כעת שלח את הקישור לסוכן ה-AI בשיחה כדי לעדכן את המערכת.
-              </p>
-              <button className="primary-btn" style={{ marginTop: '1.5rem' }} onClick={closeModal}>
-                סגור
-              </button>
-            </div>
-          )}
-
-          {modalStep === 'done-text' && (
+          {modalStep === 'done' && (
             <div className="loading-container" style={{ display: 'flex' }}>
               <div style={{ color: 'var(--accent-color)', marginBottom: '1rem' }}>
                 <CheckCircle size={48} />
               </div>
               <p>המתכון נשמר בהצלחה!</p>
-              <p style={{ fontSize: '1.1rem', color: 'var(--accent-color)', marginTop: '0.5rem' }}>
-                {doneName}
-              </p>
-              <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '1rem' }}>
-                כעת שלח את הטקסט המלא לסוכן ה-AI בשיחה כדי לעדכן את המערכת.
-              </p>
               <button className="primary-btn" style={{ marginTop: '1.5rem' }} onClick={closeModal}>
                 סגור
               </button>
@@ -317,6 +320,29 @@ export default function Home() {
           )}
         </div>
       </div>
+      
+      <style jsx>{`
+        .input-label {
+          display: block;
+          margin-bottom: 0.5rem;
+          font-weight: 500;
+          opacity: 0.8;
+        }
+        .add-recipe-form {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          max-height: 70vh;
+          overflow-y: auto;
+          padding-right: 5px;
+        }
+        select.input-field {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: left 10px center;
+        }
+      `}</style>
     </>
   )
 }
